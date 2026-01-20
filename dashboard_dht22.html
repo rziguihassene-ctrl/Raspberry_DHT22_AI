@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surveillance Température & Humidité - DHT22</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 28px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .status-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-normal { background: #10b981; }
+        .status-warning { background: #f59e0b; }
+        .status-critical { background: #ef4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f9fafb;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .metric-label {
+            font-weight: 600;
+            color: #6b7280;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            color: #9ca3af;
+            margin-left: 4px;
+        }
+
+        .temp-card {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            color: white;
+        }
+
+        .temp-card h2 {
+            color: white;
+            border-bottom-color: rgba(255,255,255,0.3);
+        }
+
+        .temp-card .metric {
+            background: rgba(255,255,255,0.2);
+            border-left-color: white;
+        }
+
+        .temp-card .metric-label,
+        .temp-card .metric-value,
+        .temp-card .metric-unit {
+            color: white;
+        }
+
+        .hum-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .hum-card h2 {
+            color: white;
+            border-bottom-color: rgba(255,255,255,0.3);
+        }
+
+        .hum-card .metric {
+            background: rgba(255,255,255,0.2);
+            border-left-color: white;
+        }
+
+        .hum-card .metric-label,
+        .hum-card .metric-value,
+        .hum-card .metric-unit {
+            color: white;
+        }
+
+        .temp-display {
+            text-align: center;
+            padding: 20px;
+            font-size: 48px;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-top: 15px;
+        }
+
+        .anomalies-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .anomalie-item {
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+
+        .anomalie-critique {
+            background: #fee2e2;
+            border-left-color: #ef4444;
+        }
+
+        .anomalie-avertissement {
+            background: #fef3c7;
+            border-left-color: #f59e0b;
+        }
+
+        .anomalie-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .anomalie-message {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        .learning-indicator {
+            background: #dbeafe;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            margin-bottom: 15px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-learning {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .comfort-indicator {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .comfort-excellent { background: #d1fae5; color: #065f46; }
+        .comfort-good { background: #dbeafe; color: #1e40af; }
+        .comfort-moderate { background: #fef3c7; color: #92400e; }
+        .comfort-poor { background: #fee2e2; color: #991b1b; }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            padding: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌡️ Surveillance Température & Humidité - DHT22</h1>
+            <div class="status-indicator">
+                <div class="status-dot status-normal" id="statusDot"></div>
+                <span id="statusText">NORMAL</span>
+            </div>
+        </header>
+
+        <div id="learningIndicator" class="learning-indicator" style="display: none;">
+            <strong>📚 Phase d'apprentissage en cours...</strong><br>
+            Le système collecte les données de référence. Détection activée après <span id="pointsRestants">50</span> mesures.
+        </div>
+
+        <div class="grid">
+            <!-- Température -->
+            <div class="card temp-card">
+                <h2>🌡️ Température</h2>
+                <div class="temp-display" id="tempDisplay">--°C</div>
+                <div class="metric">
+                    <span class="metric-label">Point de Rosée</span>
+                    <span class="metric-value" id="pointRosee">--<span class="metric-unit">°C</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Indice Chaleur</span>
+                    <span class="metric-value" id="indiceChaleur">--<span class="metric-unit">°C</span></span>
+                </div>
+            </div>
+
+            <!-- Humidité -->
+            <div class="card hum-card">
+                <h2>💧 Humidité</h2>
+                <div class="temp-display" id="humDisplay">--%</div>
+                <div class="metric">
+                    <span class="metric-label">Humidité Absolue</span>
+                    <span class="metric-value" id="humAbsolue">--<span class="metric-unit">g/m³</span></span>
+                </div>
+                <div id="comfortZone" class="comfort-indicator">
+                    Calcul du confort...
+                </div>
+            </div>
+
+            <!-- Statistiques 24h -->
+            <div class="card">
+                <h2>📈 Statistiques 24h</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-temp-moy">--</div>
+                        <div class="stat-label">Temp. Moyenne</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-temp-range">--</div>
+                        <div class="stat-label">Amplitude Temp.</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-hum-moy">--</div>
+                        <div class="stat-label">Hum. Moyenne</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="stat-nb-mesures">--</div>
+                        <div class="stat-label">Nb Mesures</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- État du Détecteur -->
+            <div class="card">
+                <h2>🤖 Détecteur IA Adaptatif</h2>
+                <div class="metric">
+                    <span class="metric-label">État</span>
+                    <span id="detector-status">--</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Points Collectés</span>
+                    <span class="metric-value" id="detector-points">--</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Seuil Critique</span>
+                    <span class="metric-value" id="detector-seuil">--<span class="metric-unit">σ</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Anomalies Total</span>
+                    <span class="metric-value" id="detector-anomalies">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Anomalies Récentes -->
+        <div class="card">
+            <h2>🚨 Anomalies Récentes</h2>
+            <div class="anomalies-list" id="anomaliesList">
+                <div class="loading">En attente de données...</div>
+            </div>
+        </div>
+
+        <!-- Graphiques -->
+        <div class="grid">
+            <div class="card">
+                <h2>📉 Historique Température</h2>
+                <div class="chart-container">
+                    <canvas id="chartTemperature"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h2>📉 Historique Humidité</h2>
+                <div class="chart-container">
+                    <canvas id="chartHumidite"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Dernière mise à jour: <span id="lastUpdate">--</span>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script>
+        let chartTemp = null;
+        let chartHum = null;
+
+        // Initialiser les graphiques
+        function initCharts() {
+            const ctxTemp = document.getElementById('chartTemperature').getContext('2d');
+            chartTemp = new Chart(ctxTemp, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Température (°C)',
+                        data: [],
+                        borderColor: '#ff6b6b',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Point de Rosée (°C)',
+                        data: [],
+                        borderColor: '#4facfe',
+                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                        tension: 0.4,
+                        borderDash: [5, 5]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Température (°C)' }
+                        }
+                    }
+                }
+            });
+
+            const ctxHum = document.getElementById('chartHumidite').getContext('2d');
+            chartHum = new Chart(ctxHum, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Humidité (%)',
+                        data: [],
+                        borderColor: '#00f2fe',
+                        backgroundColor: 'rgba(0, 242, 254, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            title: { display: true, text: 'Humidité (%)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Calculer zone de confort
+        function calculerConfort(temp, hum) {
+            // Zone de confort: 18-26°C et 30-60% humidité
+            if (temp >= 18 && temp <= 26 && hum >= 30 && hum <= 60) {
+                return { niveau: 'excellent', texte: '😊 Confort Excellent' };
+            } else if (temp >= 16 && temp <= 28 && hum >= 25 && hum <= 70) {
+                return { niveau: 'good', texte: '🙂 Bon Confort' };
+            } else if (temp >= 12 && temp <= 32 && hum >= 20 && hum <= 80) {
+                return { niveau: 'moderate', texte: '😐 Confort Modéré' };
+            } else {
+                return { niveau: 'poor', texte: '😣 Confort Faible' };
+            }
+        }
+
+        // Mettre à jour le dashboard
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/api/donnees');
+                const data = await response.json();
+
+                // Mesures en temps réel
+                if (data.mesures_recentes && data.mesures_recentes.length > 0) {
+                    const derniere = data.mesures_recentes[data.mesures_recentes.length - 1];
+                    
+                    document.getElementById('tempDisplay').textContent = 
+                        `${derniere.temperature.toFixed(1)}°C`;
+                    document.getElementById('humDisplay').textContent = 
+                        `${derniere.humidite.toFixed(1)}%`;
+                    document.getElementById('pointRosee').innerHTML = 
+                        `${derniere.point_rosee.toFixed(1)}<span class="metric-unit">°C</span>`;
+                    document.getElementById('indiceChaleur').innerHTML = 
+                        `${derniere.indice_chaleur.toFixed(1)}<span class="metric-unit">°C</span>`;
+                    document.getElementById('humAbsolue').innerHTML = 
+                        `${derniere.humidite_absolue.toFixed(1)}<span class="metric-unit">g/m³</span>`;
+
+                    // Zone de confort
+                    const confort = calculerConfort(derniere.temperature, derniere.humidite);
+                    const comfortDiv = document.getElementById('comfortZone');
+                    comfortDiv.className = `comfort-indicator comfort-${confort.niveau}`;
+                    comfortDiv.textContent = confort.texte;
+                }
+
+                // Statistiques
+                const stats = data.statistiques;
+                if (stats) {
+                    document.getElementById('stat-temp-moy').textContent = 
+                        stats.temp_moy ? stats.temp_moy.toFixed(1) + '°C' : '--';
+                    
+                    if (stats.temp_max && stats.temp_min) {
+                        const amplitude = stats.temp_max - stats.temp_min;
+                        document.getElementById('stat-temp-range').textContent = 
+                            amplitude.toFixed(1) + '°C';
+                    }
+                    
+                    document.getElementById('stat-hum-moy').textContent = 
+                        stats.hum_moy ? stats.hum_moy.toFixed(1) + '%' : '--';
+                    document.getElementById('stat-nb-mesures').textContent = 
+                        stats.nb_mesures || '--';
+                }
+
+                // État du détecteur
+                const detecteur = data.etat_detecteur;
+                if (detecteur) {
+                    const isLearning = detecteur.phase_apprentissage;
+                    const statusBadge = isLearning ? 
+                        '<span class="badge badge-learning">APPRENTISSAGE</span>' :
+                        '<span class="badge badge-active">ACTIF</span>';
+                    
+                    document.getElementById('detector-status').innerHTML = statusBadge;
+                    document.getElementById('detector-points').textContent = detecteur.nb_points_collectes;
+                    document.getElementById('detector-seuil').innerHTML = 
+                        `${detecteur.seuils?.critique?.toFixed(1) || '--'}<span class="metric-unit">σ</span>`;
+                    document.getElementById('detector-anomalies').textContent = 
+                        detecteur.nb_anomalies_historique;
+
+                    // Afficher indicateur d'apprentissage
+                    const learningDiv = document.getElementById('learningIndicator');
+                    if (isLearning) {
+                        learningDiv.style.display = 'block';
+                        const restants = Math.max(0, 50 - detecteur.nb_points_collectes);
+                        document.getElementById('pointsRestants').textContent = restants;
+                    } else {
+                        learningDiv.style.display = 'none';
+                    }
+                }
+
+                // Anomalies
+                updateAnomalies(data.anomalies_recentes);
+
+                // Mettre à jour les graphiques
+                updateCharts(data.mesures_recentes);
+
+                // Statut global
+                updateGlobalStatus(data.anomalies_recentes);
+
+                // Dernière mise à jour
+                document.getElementById('lastUpdate').textContent = 
+                    new Date().toLocaleTimeString('fr-FR');
+
+            } catch (error) {
+                console.error('Erreur mise à jour:', error);
+            }
+        }
+
+        function updateAnomalies(anomalies) {
+            const list = document.getElementById('anomaliesList');
+            
+            if (!anomalies || anomalies.length === 0) {
+                list.innerHTML = '<div class="loading">Aucune anomalie détectée</div>';
+                return;
+            }
+
+            list.innerHTML = anomalies.slice().reverse().slice(0, 10).map(a => `
+                <div class="anomalie-item anomalie-${a.niveau}">
+                    <div class="anomalie-header">
+                        <span>${a.niveau === 'critique' ? '🚨' : '⚠️'} ${a.type_anomalie}</span>
+                        <span>${new Date(a.timestamp).toLocaleTimeString('fr-FR')}</span>
+                    </div>
+                    <div class="anomalie-message">${a.message}</div>
+                </div>
+            `).join('');
+        }
+
+        function updateCharts(mesures) {
+            if (!chartTemp || !chartHum || !mesures || mesures.length === 0) return;
+
+            const derniers = mesures.slice(-30);
+            const labels = derniers.map(m => 
+                new Date(m.timestamp).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})
+            );
+
+            chartTemp.data.labels = labels;
+            chartTemp.data.datasets[0].data = derniers.map(m => m.temperature);
+            chartTemp.data.datasets[1].data = derniers.map(m => m.point_rosee);
+            chartTemp.update('none');
+
+            chartHum.data.labels = labels;
+            chartHum.data.datasets[0].data = derniers.map(m => m.humidite);
+            chartHum.update('none');
+        }
+
+        function updateGlobalStatus(anomalies) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+
+            if (!anomalies || anomalies.length === 0) {
+                statusDot.className = 'status-dot status-normal';
+                statusText.textContent = 'NORMAL';
+                return;
+            }
+
+            const derniere = anomalies[anomalies.length - 1];
+            if (derniere.niveau === 'critique') {
+                statusDot.className = 'status-dot status-critical';
+                statusText.textContent = 'CRITIQUE';
+            } else {
+                statusDot.className = 'status-dot status-warning';
+                statusText.textContent = 'AVERTISSEMENT';
+            }
+        }
+
+        // Initialisation
+        window.addEventListener('load', () => {
+            initCharts();
+            updateDashboard();
+            setInterval(updateDashboard, 2000); // Mise à jour toutes les 2 secondes
+        });
+    </script>
+</body>
+</html>
