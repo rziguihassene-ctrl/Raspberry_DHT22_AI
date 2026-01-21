@@ -1,7 +1,7 @@
 """
 Système de Surveillance Température et Humidité DHT22
-Version: 2.0 - Professionnel avec apprentissage adaptatif
-Raspberry Pi 5 compatible
+Version: 2.1 - Raspberry Pi 4 Compatible
+Utilise adafruit-circuitpython-dht (moderne et maintenu)
 """
 
 import sqlite3
@@ -16,12 +16,14 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Tuple
 import statistics
 
-# Import pour DHT22 sur Raspberry Pi
+# Import pour DHT22 sur Raspberry Pi 4
 try:
-    import Adafruit_DHT
+    import board
+    import adafruit_dht
     DHT_DISPONIBLE = True
+    print("✅ Bibliothèque adafruit-circuitpython-dht chargée")
 except ImportError:
-    print("⚠️  Adafruit_DHT non installé - Mode simulation activé")
+    print("⚠️  adafruit-circuitpython-dht non installé - Mode simulation activé")
     DHT_DISPONIBLE = False
 
 
@@ -395,16 +397,16 @@ class DetecteurAnomaliesAdaptatif:
 
 
 # ============================================================================
-# CAPTEUR DHT22
+# CAPTEUR DHT22 - VERSION RASPBERRY PI 4
 # ============================================================================
 
 class DHT22Sensor:
-    """Interface pour le capteur DHT22 sur Raspberry Pi"""
+    """Interface pour le capteur DHT22 sur Raspberry Pi 4"""
     
     def __init__(self, gpio_pin: int = 4, mode_simulation: bool = not DHT_DISPONIBLE):
         self.gpio_pin = gpio_pin
         self.mode_simulation = mode_simulation
-        self.DHT_SENSOR = Adafruit_DHT.DHT22 if DHT_DISPONIBLE else None
+        self.dht_device = None
         
         # Variables de simulation
         self.temp_base = 22.0
@@ -414,7 +416,26 @@ class DHT22Sensor:
         if self.mode_simulation:
             print(f"⚠️  Mode SIMULATION activé (GPIO {gpio_pin})")
         else:
-            print(f"✅ Capteur DHT22 initialisé sur GPIO {gpio_pin}")
+            # Initialiser le capteur DHT22 réel
+            try:
+                # Correspondance GPIO board pour Pi 4
+                gpio_map = {
+                    4: board.D4,
+                    17: board.D17,
+                    27: board.D27,
+                    22: board.D22,
+                    # Ajoutez d'autres si nécessaire
+                }
+                
+                gpio_board = gpio_map.get(gpio_pin, board.D4)
+                self.dht_device = adafruit_dht.DHT22(gpio_board, use_pulseio=False)
+                print(f"✅ Capteur DHT22 initialisé sur GPIO {gpio_pin} (Raspberry Pi 4)")
+                
+            except Exception as e:
+                print(f"❌ Erreur initialisation DHT22: {e}")
+                print("⚠️  Passage en mode simulation")
+                self.mode_simulation = True
+                self.dht_device = None
     
     def _calculer_point_rosee(self, temp: float, hum: float) -> float:
         """Calcule le point de rosée (formule Magnus)"""
@@ -477,11 +498,17 @@ class DHT22Sensor:
                 hum = max(0, min(100, hum))
                 
             else:
-                # Lecture réelle du capteur
-                hum, temp = Adafruit_DHT.read_retry(self.DHT_SENSOR, self.gpio_pin)
-                
-                if hum is None or temp is None:
-                    print("❌ Erreur lecture DHT22")
+                # Lecture réelle du capteur DHT22
+                try:
+                    temp = self.dht_device.temperature
+                    hum = self.dht_device.humidity
+                    
+                    if temp is None or hum is None:
+                        return None
+                        
+                except RuntimeError as e:
+                    # Les erreurs de lecture temporaires sont normales avec DHT22
+                    # On les ignore et on réessaiera au prochain cycle
                     return None
             
             # Calculs dérivés
@@ -501,6 +528,14 @@ class DHT22Sensor:
         except Exception as e:
             print(f"❌ Erreur lecture capteur: {e}")
             return None
+    
+    def __del__(self):
+        """Nettoyage lors de la destruction de l'objet"""
+        if self.dht_device is not None:
+            try:
+                self.dht_device.exit()
+            except:
+                pass
 
 
 # ============================================================================
@@ -520,7 +555,7 @@ class SystemeSurveillanceClimat:
         self.detecteur = DetecteurAnomaliesAdaptatif(self.db)
         
         # Configuration
-        self.intervalle_mesure = 5  # secondes (DHT22 max 2Hz)
+        self.intervalle_mesure = 3  # secondes (DHT22 max 0.5Hz = 2s minimum)
         self.running = False
         
         # Dernières données pour l'interface web
